@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react"
+import { Button, TextField } from "@steambrew/client"
 import { AchievementsView } from "./AchievementsView"
 import { GameSearchModal } from "./GameSearchModal"
 import {
@@ -165,22 +166,21 @@ export function AchievementPanel({ appId, gameName, doc, onProgress, onDismiss }
           {t("localSteamHint")}
         </div>
         <div className="ra-local-link__row">
-          <input
+          <TextField
             className="ra-settings__input"
-            type="number"
-            min={1}
-            placeholder={t("realSteamAppIdPlaceholder")}
+            mustBeNumeric
+            label={t("realSteamAppIdPlaceholder")}
             value={localSteamAppId}
             onChange={(e) => setLocalSteamAppId(e.currentTarget.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleLocalSteamLink() }}
           />
-          <button className="ra-btn ra-btn--primary" onClick={handleLocalSteamLink}>
+          <Button className="ra-btn ra-btn--primary" onClick={handleLocalSteamLink}>
             {t("link")}
-          </button>
+          </Button>
           {getLocalSteamAppMapping(appId) != null && (
-            <button className="ra-btn" onClick={handleLocalSteamUnlink}>
+            <Button className="ra-btn" onClick={handleLocalSteamUnlink}>
               {t("clear")}
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -195,12 +195,12 @@ export function AchievementPanel({ appId, gameName, doc, onProgress, onDismiss }
           {t("currentRaLink", { suffix: raGameId != null ? t("gameIdSuffix", { id: raGameId }) : "" })}
         </div>
         <div className="ra-local-link__row">
-          <button className="ra-btn" onClick={() => setShowModal(true)}>
+          <Button className="ra-btn" onClick={() => setShowModal(true)}>
             {t("changeRa")}
-          </button>
-          <button className="ra-btn" onClick={handleRaUnlink}>
+          </Button>
+          <Button className="ra-btn" onClick={handleRaUnlink}>
             {t("useLocalAchievements")}
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -221,7 +221,7 @@ export function AchievementPanel({ appId, gameName, doc, onProgress, onDismiss }
         <div className="ra-panel__head">
           <span className="ra-panel__heading">{headingLabel}</span>
           {canEdit && (
-            <button
+            <Button
               className="ra-panel__edit"
               title={editTitle}
               onClick={() => {
@@ -235,7 +235,7 @@ export function AchievementPanel({ appId, gameName, doc, onProgress, onDismiss }
               }}
             >
               ✎
-            </button>
+            </Button>
           )}
         </div>
 
@@ -245,12 +245,12 @@ export function AchievementPanel({ appId, gameName, doc, onProgress, onDismiss }
           <div className="ra-panel__compact">
             <span>{t("unlinkedQuestion")}</span>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button className="ra-btn ra-btn--primary" onClick={() => setShowModal(true)}>
+              <Button className="ra-btn ra-btn--primary" onClick={() => setShowModal(true)}>
                 {t("linkToRa")}
-              </button>
-              <button className="ra-btn" onClick={handleDismiss}>
+              </Button>
+              <Button className="ra-btn" onClick={handleDismiss}>
                 {t("notRaGame")}
-              </button>
+              </Button>
             </div>
             {!isLocalDetectionEnabled() && (
               <div style={{ fontSize: 11.5, color: "var(--ra-mute, #8b929b)", marginTop: 4 }}>
@@ -269,7 +269,7 @@ export function AchievementPanel({ appId, gameName, doc, onProgress, onDismiss }
         {panelState === "error" && (
           <div className="ra-panel__compact">
             <span>{error ?? t("loadAchievementsError")}</span>
-            <button className="ra-btn" onClick={load}>{t("retry")}</button>
+            <Button className="ra-btn" onClick={load}>{t("retry")}</Button>
           </div>
         )}
 

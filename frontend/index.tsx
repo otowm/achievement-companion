@@ -40,19 +40,6 @@ const ACTION_ROW_SELECTOR =
   "div._3fLo166MlaNqP8r8tTyRz._3DeO92O5aVkcdwEBCJDjWm > div > div > " +
   "div._1YbtIWcfkQJOysLXQbwzRf > div > div._1mDAVT4sTzFRwJtlKCw2Ws"
 
-// Static markup for the action-bar stat (a trophy icon + label + value + bar).
-const ACTION_STAT_MARKUP = `
-<div class="ra-statitem__icon">
-  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
-    <path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94A5.01 5.01 0 0 0 11 18.9V21H7v2h10v-2h-4v-2.1a5.01 5.01 0 0 0 3.61-3.96C19.08 14.63 21 12.55 21 10V8c0-1.1-.9-2-2-2zM5 10V8h2v3.82C5.84 11.4 5 10.3 5 10zm14 0c0 .3-.84 1.4-2 1.82V8h2v2z"/>
-  </svg>
-</div>
-<div class="ra-statitem__text">
-  <div class="ra-statitem__label">Achievements</div>
-  <div class="ra-statitem__value"></div>
-  <div class="ra-statitem__bar"><div class="ra-statitem__fill"></div></div>
-</div>`.trim()
-
 interface SteamPopup {
   m_strName: string
   m_popup: {
@@ -172,6 +159,48 @@ function unmountPanel() {
   disposeRoot()
 }
 
+function createActionStat(doc: Document): HTMLElement {
+  const item = doc.createElement("div")
+  item.id = ACTION_ITEM_ID
+  item.className = "ra-statitem"
+
+  const icon = doc.createElement("div")
+  icon.className = "ra-statitem__icon"
+
+  const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg")
+  svg.setAttribute("viewBox", "0 0 24 24")
+  svg.setAttribute("width", "22")
+  svg.setAttribute("height", "22")
+  svg.setAttribute("fill", "currentColor")
+  svg.setAttribute("aria-hidden", "true")
+
+  const path = doc.createElementNS("http://www.w3.org/2000/svg", "path")
+  path.setAttribute("d", "M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94A5.01 5.01 0 0 0 11 18.9V21H7v2h10v-2h-4v-2.1a5.01 5.01 0 0 0 3.61-3.96C19.08 14.63 21 12.55 21 10V8c0-1.1-.9-2-2-2zM5 10V8h2v3.82C5.84 11.4 5 10.3 5 10zm14 0c0 .3-.84 1.4-2 1.82V8h2v2z")
+  svg.appendChild(path)
+  icon.appendChild(svg)
+
+  const text = doc.createElement("div")
+  text.className = "ra-statitem__text"
+
+  const label = doc.createElement("div")
+  label.className = "ra-statitem__label"
+  label.textContent = t("achievements")
+
+  const value = doc.createElement("div")
+  value.className = "ra-statitem__value"
+
+  const bar = doc.createElement("div")
+  bar.className = "ra-statitem__bar"
+
+  const fill = doc.createElement("div")
+  fill.className = "ra-statitem__fill"
+  bar.appendChild(fill)
+
+  text.append(label, value, bar)
+  item.append(icon, text)
+  return item
+}
+
 /**
  * Mirror the panel's progress as a stat in the game hero's action bar.
  * Appends (or updates) an `.ra-statitem` at the end of the stat row; a null
@@ -197,10 +226,7 @@ function renderActionStat(doc: Document, progress: PanelProgress | null) {
   let item = existing as HTMLElement | null
   if (!item || item.ownerDocument !== doc) {
     item?.remove()
-    item = doc.createElement("div")
-    item.id = ACTION_ITEM_ID
-    item.className = "ra-statitem"
-    item.innerHTML = ACTION_STAT_MARKUP
+    item = createActionStat(doc)
   }
 
   const value = item.querySelector(".ra-statitem__value")

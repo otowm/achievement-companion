@@ -1,4 +1,5 @@
 import React, { useState } from "react"
+import { Button, Dropdown } from "@steambrew/client"
 import { Achievement, AchievementsResponse } from "../api"
 import { t } from "../i18n"
 
@@ -21,14 +22,8 @@ function unlockTime(a: Achievement): number {
 
 type LocalSortMode = "recent" | "oldest" | "game" | "name"
 type AchievementSource = "ra" | "local"
-type HoverCardState = { achievement: Achievement; x: number; y: number }
-
 const HOVER_CARD_ID = "ra-achievement-hover-card"
 let hoverCardDoc: Document | null = null
-
-function createPortal(node: React.ReactElement, _container?: Element): React.ReactElement {
-  return node
-}
 
 function sortLocalAchievements(achievements: Achievement[], mode: LocalSortMode): Achievement[] {
   const byGameOrder = (a: Achievement, b: Achievement) => a.display_order - b.display_order
@@ -81,42 +76,6 @@ function formatUnlockDate(date: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(parsed)
-}
-
-function HoverAchievementCard({ state }: { state: HoverCardState }) {
-  const achievement = state.achievement
-  const src = achievement.earned ? achievement.badge_url : achievement.badge_locked_url
-  const description = achievementDescription(achievement)
-  const awarded = achievement.num_awarded > 0
-    ? t("awardedBy", { count: achievement.num_awarded.toLocaleString("pt-BR") })
-    : ""
-  const status = achievement.earned
-    ? `Alcançada${achievement.date_earned ? ` em ${formatUnlockDate(achievement.date_earned)}` : ""}`
-    : "Ainda bloqueada"
-
-  const statusText = achievement.earned
-    ? (achievement.date_earned ? t("achievedOn", { date: formatUnlockDate(achievement.date_earned) }) : t("achieved"))
-    : t("stillLocked")
-
-  return createPortal((
-    <div className="ra-hover-card" style={{ left: state.x, top: state.y }}>
-      {src ? (
-        <img className={`ra-hover-card__icon${achievement.earned ? "" : " ra-hover-card__icon--locked"}`} src={src} alt="" />
-      ) : (
-        <div className={`ra-hover-card__icon ra-hover-card__icon--text${achievement.earned ? "" : " ra-hover-card__icon--locked"}`}>
-          {achievement.title.slice(0, 3).toUpperCase()}
-        </div>
-      )}
-      <div className="ra-hover-card__body">
-        <div className="ra-hover-card__title">{achievement.title}</div>
-        {description && <div className="ra-hover-card__desc">{description}</div>}
-        <div className="ra-hover-card__meta">
-          <div>{statusText}</div>
-          {awarded && <div>{awarded}</div>}
-        </div>
-      </div>
-    </div>
-  ), document.body)
 }
 
 function makeText(doc: Document, className: string, text: string): HTMLElement {
@@ -267,7 +226,7 @@ function AchievementDetailsModal({
           <span className="ra-modal__title">
             {source === "local" ? data.game?.title ?? t("localAchievements") : t("retroAchievements")}
           </span>
-          <button className="ra-modal__close" onClick={onClose}>x</button>
+          <Button className="ra-modal__close" onClick={onClose}>x</Button>
         </div>
         {source === "ra" && url ? (
           <iframe className="ra-popup-frame" src={url} title="RetroAchievements" />
@@ -275,16 +234,16 @@ function AchievementDetailsModal({
           <div className="ra-modal__body">
             <div className="ra-local-ach-toolbar">
               <span className="ra-local-ach-toolbar__label">{t("countAchievements", { count: achievements.length })}</span>
-              <select
-                className="ra-local-ach-toolbar__select"
-                value={localSortMode}
-                onChange={(e) => setLocalSortMode(e.currentTarget.value as LocalSortMode)}
-              >
-                <option value="recent">{t("mostRecent")}</option>
-                <option value="oldest">{t("oldest")}</option>
-                <option value="game">{t("gameOrder")}</option>
-                <option value="name">{t("name")}</option>
-              </select>
+              <Dropdown
+                selectedOption={localSortMode}
+                rgOptions={[
+                  { data: "recent", label: t("mostRecent") },
+                  { data: "oldest", label: t("oldest") },
+                  { data: "game", label: t("gameOrder") },
+                  { data: "name", label: t("name") },
+                ]}
+                onChange={(option) => setLocalSortMode(option.data as LocalSortMode)}
+              />
             </div>
             <div className="ra-local-ach-list">
               {achievements.map((achievement) => {
@@ -427,7 +386,7 @@ export function AchievementsView({ data, source = "ra" }: Props) {
 
       {data.game && (
         <div className="ra-ach__foot">
-          <button
+          <Button
             className="ra-ach__link"
             onClick={() => {
               if (source === "local") {
@@ -440,7 +399,7 @@ export function AchievementsView({ data, source = "ra" }: Props) {
             }}
           >
             {source === "local" ? t("viewLocal") : t("viewRetroAchievements")}
-          </button>
+          </Button>
         </div>
       )}
       {source === "local" && showDetails && (

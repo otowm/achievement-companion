@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
+import { Button, TextField } from "@steambrew/client"
 import { Candidate, RaConsole, getRaConsoles, searchConsoleGames } from "../api"
 import { t } from "../i18n"
 
@@ -211,17 +212,17 @@ export function GameSearchModal({ initialCandidates = [], doc, onClose, onSelect
       <div className={`ra-modal${tab === "search" ? " ra-modal--wide" : ""}`}>
         <div className="ra-modal__header">
           <span className="ra-modal__title">{t("linkToRetroAchievements")}</span>
-          <button className="ra-modal__close" onClick={onClose}>×</button>
+          <Button className="ra-modal__close" onClick={onClose}>×</Button>
         </div>
         <div className="ra-modal__tabs">
           {(["search", "manual"] as Tab[]).map((tabName) => (
-            <button
+            <Button
               key={tabName}
               className={`ra-modal__tab${tab === tabName ? " ra-modal__tab--active" : ""}`}
               onClick={() => { setTab(tabName); setError(null) }}
             >
               {tabName === "search" ? t("searchByName") : t("pasteId")}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -236,7 +237,7 @@ export function GameSearchModal({ initialCandidates = [], doc, onClose, onSelect
                     <div className="ra-console-picker__group" key={group.title}>
                       <div className="ra-console-picker__title">{group.title}</div>
                       {group.consoles.map((consoleItem) => (
-                        <button
+                        <Button
                           key={consoleItem.id}
                           type="button"
                           className={`ra-console-picker__item${
@@ -246,7 +247,7 @@ export function GameSearchModal({ initialCandidates = [], doc, onClose, onSelect
                         >
                           <span className="ra-console-picker__icon">{consoleIconLabel(consoleItem.name)}</span>
                           {consoleItem.name}
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   ))
@@ -257,9 +258,9 @@ export function GameSearchModal({ initialCandidates = [], doc, onClose, onSelect
                   {t("selectedSystem")} <strong>{selectedConsoleName}</strong>
                 </div>
               )}
-              <input
+              <TextField
                 className="ra-modal__input"
-                placeholder={consoleId == null ? t("chooseSystemFirst") : t("gameNamePlaceholder")}
+                label={consoleId == null ? t("chooseSystemFirst") : t("gameNamePlaceholder")}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 disabled={consoleId == null}
@@ -297,11 +298,10 @@ export function GameSearchModal({ initialCandidates = [], doc, onClose, onSelect
                   {t("raUrlHint")}<strong>1446</strong>
                 </span>
               </label>
-              <input
+              <TextField
                 className="ra-modal__input"
-                type="number"
-                min={1}
-                placeholder="ex: 1446"
+                mustBeNumeric
+                label="ex: 1446"
                 value={manualId}
                 onChange={(e) => setManualId(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleManualConfirm() }}
@@ -314,11 +314,11 @@ export function GameSearchModal({ initialCandidates = [], doc, onClose, onSelect
         </div>
 
         <div className="ra-modal__footer">
-          <button className="ra-btn" onClick={onClose}>{t("cancel")}</button>
+          <Button className="ra-btn" onClick={onClose}>{t("cancel")}</Button>
           {tab === "manual" && (
-            <button className="ra-btn ra-btn--primary" onClick={handleManualConfirm} disabled={loading}>
+            <Button className="ra-btn ra-btn--primary" onClick={handleManualConfirm} disabled={loading}>
               {t("confirm")}
-            </button>
+            </Button>
           )}
         </div>
       </div>

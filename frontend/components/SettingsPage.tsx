@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
+import { Button, Dropdown, Field, TextField, ToggleField } from "@steambrew/client"
 import { searchGames, validateCredentials, Candidate } from "../api"
 import {
   clearDismissed,
@@ -41,30 +42,13 @@ function DebugLog() {
 
   async function copyLog() {
     const text = lines.join("\n")
-    let ok = false
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text)
-        ok = true
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
       }
     } catch {}
-    if (!ok) {
-      try {
-        const ta = document.createElement("textarea")
-        ta.value = text
-        ta.style.position = "fixed"
-        ta.style.opacity = "0"
-        document.body.appendChild(ta)
-        ta.select()
-        document.execCommand("copy")
-        ta.remove()
-        ok = true
-      } catch {}
-    }
-    if (ok) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    }
   }
   return (
     <details>
@@ -87,21 +71,21 @@ function DebugLog() {
         {lines.length === 0 ? t("noLogsYet") : lines.join("\n")}
       </pre>
       <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-        <button
+        <Button
           className="ra-btn ra-btn--primary"
           style={{ padding: "2px 8px", fontSize: 11 }}
           onClick={copyLog}
           disabled={lines.length === 0}
         >
           {copied ? t("copied") : t("copyLogs")}
-        </button>
-        <button
+        </Button>
+        <Button
           className="ra-btn"
           style={{ padding: "2px 8px", fontSize: 11 }}
           onClick={() => { localStorage.removeItem(DEBUG_LOG_KEY); setLines([]) }}
         >
           {t("clearLogs")}
-        </button>
+        </Button>
       </div>
     </details>
   )
@@ -220,18 +204,17 @@ export function SettingsPage() {
   return (
     <div className="ra-settings" ref={rootRef}>
       {/* Language */}
-      <div className="ra-settings__section">
-        <div className="ra-settings__label">{t("settingsLanguage")}</div>
-        <select
-          className="ra-settings__input"
-          value={language}
-          onChange={(e) => handleLanguageChange(e.currentTarget.value as AppLanguage)}
-        >
-          <option value="auto">{t("languageAuto")}</option>
-          <option value="pt-BR">{t("languagePtBr")}</option>
-          <option value="en">{t("languageEn")}</option>
-        </select>
-      </div>
+      <Field label={t("settingsLanguage")} bottomSeparator="standard">
+        <Dropdown
+          rgOptions={[
+            { data: "auto", label: t("languageAuto") },
+            { data: "pt-BR", label: t("languagePtBr") },
+            { data: "en", label: t("languageEn") },
+          ]}
+          selectedOption={language}
+          onChange={(option) => handleLanguageChange(option.data as AppLanguage)}
+        />
+      </Field>
 
       {/* Debug log */}
       <div className="ra-settings__section">
@@ -258,16 +241,16 @@ export function SettingsPage() {
                     <strong>{name}</strong>
                     <small>AppID {game.appId}</small>
                   </span>
-                  <button className="ra-btn" onClick={() => handleRestoreDismissed(game.appId)}>
+                  <Button className="ra-btn" onClick={() => handleRestoreDismissed(game.appId)}>
                     {t("restore")}
-                  </button>
+                  </Button>
                 </div>
               )})}
             </div>
             <div>
-              <button className="ra-btn ra-btn--primary" onClick={handleRestoreAllDismissed}>
+              <Button className="ra-btn ra-btn--primary" onClick={handleRestoreAllDismissed}>
                 {t("restoreAll")}
-              </button>
+              </Button>
             </div>
           </>
         )}
@@ -276,24 +259,24 @@ export function SettingsPage() {
       {/* Credentials */}
       <div className="ra-settings__section">
         <div className="ra-settings__label">{t("raCredentials")}</div>
-        <input
+        <TextField
           className="ra-settings__input"
-          placeholder={t("raUser")}
+          label={t("raUser")}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
         />
-        <input
+        <TextField
           className="ra-settings__input"
-          type="password"
-          placeholder="API Key"
+          bIsPassword
+          label="API Key"
           value={apiKey}
           onFocus={() => { if (apiKey === "••••••••••••") setApiKey("") }}
           onChange={(e) => setApiKey(e.target.value)}
         />
         <div>
-          <button className="ra-btn ra-btn--primary" onClick={handleSave} disabled={saving}>
+          <Button className="ra-btn ra-btn--primary" onClick={handleSave} disabled={saving}>
             {saving ? t("validating") : t("saveAndValidate")}
-          </button>
+          </Button>
         </div>
         {status && (
           <div className={`ra-settings__status ra-settings__status--${status.ok ? "ok" : "error"}`}>
@@ -308,26 +291,23 @@ export function SettingsPage() {
         <div style={{ fontSize: 11.5, color: "var(--ra-mute, #8b929b)", lineHeight: 1.5 }}>
           {t("localExperimentalHint")}
         </div>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
-          <input
-            type="checkbox"
-            checked={localDetectionEnabled}
-            onChange={(e) => handleLocalDetectionToggle(e.currentTarget.checked)}
-          />
-          {t("enableLocalDetection")}
-        </label>
-        <input
+        <ToggleField
+          label={t("enableLocalDetection")}
+          checked={localDetectionEnabled}
+          onChange={handleLocalDetectionToggle}
+        />
+        <TextField
           className="ra-settings__input"
-          type="password"
-          placeholder={t("key32Placeholder")}
+          bIsPassword
+          label={t("key32Placeholder")}
           value={steamKey}
           onFocus={() => { if (steamKey === "••••••••••••") setSteamKey("") }}
           onChange={(e) => setSteamKey(e.target.value)}
         />
         <div>
-          <button className="ra-btn ra-btn--primary" onClick={handleSaveSteamKey}>
+          <Button className="ra-btn ra-btn--primary" onClick={handleSaveSteamKey}>
             {steamKeySaved ? t("saved") : t("save")}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -340,19 +320,18 @@ export function SettingsPage() {
               {t("raGameIdHint")}<b>1234</b>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
-              <input
+              <TextField
                 className="ra-settings__input"
-                placeholder="ex: 558"
-                type="number"
-                min={1}
+                label="ex: 558"
+                mustBeNumeric
                 value={manualIdInput}
                 onChange={(e) => setManualIdInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleLoadById() }}
                 style={{ flex: 1 }}
               />
-              <button className="ra-btn ra-btn--primary" onClick={handleLoadById}>
+              <Button className="ra-btn ra-btn--primary" onClick={handleLoadById}>
                 {t("view")}
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -360,17 +339,17 @@ export function SettingsPage() {
           <div className="ra-settings__section">
             <div className="ra-settings__label">{t("searchGameByNameRa")}</div>
             <div style={{ display: "flex", gap: 6 }}>
-              <input
+              <TextField
                 className="ra-settings__input"
-                placeholder="ex: Yoshi"
+                label="ex: Yoshi"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleSearch() }}
                 style={{ flex: 1 }}
               />
-              <button className="ra-btn" onClick={handleSearch} disabled={searching}>
+              <Button className="ra-btn" onClick={handleSearch} disabled={searching}>
                 {searching ? "..." : t("searchByName")}
-              </button>
+              </Button>
             </div>
             {searchResults.length > 0 && (
               <div style={{ marginTop: 6, maxHeight: 200, overflowY: "auto" }}>
