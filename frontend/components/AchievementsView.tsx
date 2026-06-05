@@ -200,7 +200,7 @@ function Badge({
 
 interface Props {
   data: AchievementsResponse
-  /** "ra" = RetroAchievements (default), "local" = Steam emulator (Goldberg/RUNE). */
+  /** "ra" = RetroAchievements (default), "local" = Steam emulator. */
   source?: "ra" | "local"
 }
 

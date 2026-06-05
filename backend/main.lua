@@ -536,7 +536,11 @@ end
 local function read_appid_ini_file(path)
     local raw = read_file_bytes(path)
     if not raw then return nil end
-    return tonumber(raw:match("[Aa]pp[Ii]d%s*=%s*(%d+)") or raw:match("[Aa]ppID%s*=%s*(%d+)"))
+    return tonumber(
+        raw:match("[Rr]eal[Aa]pp[Ii]d%s*=%s*(%d+)")
+        or raw:match("[Aa]pp[Ii]d%s*=%s*(%d+)")
+        or raw:match("[Aa]ppID%s*=%s*(%d+)")
+    )
 end
 
 local function get_env(name)
@@ -605,6 +609,7 @@ local function infer_real_appid(shortcut)
             or read_appid_text_file(dir .. "/steam_settings/steam_appid.txt")
             or read_appid_ini_file(dir .. "/steam_emu.ini")
             or read_appid_ini_file(dir .. "/RUNE.ini")
+            or read_appid_ini_file(dir .. "/OnlineFix.ini")
         if id then return id end
     end
 
@@ -691,8 +696,28 @@ local function add_rune_saves(out, root, source)
     end
 end
 
+local function add_onlinefix_saves(out, root, source)
+    if not root or not fs.is_directory(root) then return end
+    for _, appid_entry in ipairs(fs.list(root) or {}) do
+        local appid = fs_entry_name(appid_entry)
+        local numeric_appid = tonumber(appid)
+        if numeric_appid then
+            local state = root .. "/" .. appid .. "/Stats/Achievements.ini"
+            if fs.is_file(state) then
+                table.insert(out, {
+                    emulator = "onlinefix",
+                    real_appid = numeric_appid,
+                    state = state,
+                    source = source,
+                })
+            end
+        end
+    end
+end
+
 -- Collect Steam-emulator save files inside a Proton/Wine prefix. Goldberg
--- writes under each user's AppData/Roaming; RUNE writes under Public Documents.
+-- writes under each user's AppData/Roaming; RUNE and OnlineFix write under
+-- Public Documents.
 local function collect_prefix_emulator_saves(prefix)
     local out = {}
     local users_dir = prefix .. "/drive_c/users"
@@ -708,6 +733,7 @@ local function collect_prefix_emulator_saves(prefix)
 
     local rune_root = users_dir .. "/Public/Documents/Steam/RUNE"
     add_rune_saves(out, rune_root, "prefix:" .. prefix)
+    add_onlinefix_saves(out, users_dir .. "/Public/Documents/OnlineFix", "prefix:" .. prefix)
 
     return out
 end
@@ -728,6 +754,8 @@ local function collect_native_emulator_saves()
 
     add_rune_saves(out, public .. "/Documents/Steam/RUNE", "windows:PUBLIC")
     add_rune_saves(out, "C:/Users/Public/Documents/Steam/RUNE", "windows:public-default")
+    add_onlinefix_saves(out, public .. "/Documents/OnlineFix", "windows:PUBLIC")
+    add_onlinefix_saves(out, "C:/Users/Public/Documents/OnlineFix", "windows:public-default")
 
     return out
 end
@@ -796,6 +824,10 @@ local function native_restore_roots(emulator)
         local public = path_clean(get_env("PUBLIC")) or "C:/Users/Public"
         add_restore_root(out, public .. "/Documents/Steam/RUNE")
         add_restore_root(out, "C:/Users/Public/Documents/Steam/RUNE")
+    elseif emulator == "onlinefix" then
+        local public = path_clean(get_env("PUBLIC")) or "C:/Users/Public"
+        add_restore_root(out, public .. "/Documents/OnlineFix")
+        add_restore_root(out, "C:/Users/Public/Documents/OnlineFix")
     end
     return out
 end
@@ -820,6 +852,8 @@ local function prefix_restore_roots(real_appid, emulator, game_name)
                         add_restore_root(out, users_dir .. "/steamuser/AppData/Roaming/Goldberg SteamEmu Saves")
                     elseif emulator == "rune" then
                         add_restore_root(out, users_dir .. "/Public/Documents/Steam/RUNE")
+                    elseif emulator == "onlinefix" then
+                        add_restore_root(out, users_dir .. "/Public/Documents/OnlineFix")
                     end
                 end
             end
@@ -843,6 +877,8 @@ local function source_restore_roots(source, emulator)
         end
     elseif emulator == "rune" then
         add_restore_root(out, users_dir .. "/Public/Documents/Steam/RUNE")
+    elseif emulator == "onlinefix" then
+        add_restore_root(out, users_dir .. "/Public/Documents/OnlineFix")
     end
     return out
 end
@@ -864,6 +900,7 @@ end
 local function emulator_state_file(emulator)
     if emulator == "goldberg" then return "achievements.json" end
     if emulator == "rune" then return "achievements.ini" end
+    if emulator == "onlinefix" then return "Stats/Achievements.ini" end
     return nil
 end
 
@@ -957,12 +994,18 @@ local function import_local_achievement_backup_impl(path)
                     local ok_dir, dir_err = ensure_dir(app_dir)
                     if ok_dir then
                         local target = app_dir .. "/" .. file_name
-                        local ok_write, write_err = write_file_bytes(target, content)
-                        if ok_write then
-                            wrote_one = true
-                            table.insert(written, { steam_app_id = real_appid, emulator = emulator, path = target })
+                        local target_dir = path_dirname(target)
+                        local ok_target_dir, target_dir_err = ensure_dir(target_dir)
+                        if ok_target_dir then
+                            local ok_write, write_err = write_file_bytes(target, content)
+                            if ok_write then
+                                wrote_one = true
+                                table.insert(written, { steam_app_id = real_appid, emulator = emulator, path = target })
+                            else
+                                table.insert(failed, { steam_app_id = real_appid, emulator = emulator, error = tostring(write_err) })
+                            end
                         else
-                            table.insert(failed, { steam_app_id = real_appid, emulator = emulator, error = tostring(write_err) })
+                            table.insert(failed, { steam_app_id = real_appid, emulator = emulator, error = tostring(target_dir_err) })
                         end
                     else
                         table.insert(failed, { steam_app_id = real_appid, emulator = emulator, error = tostring(dir_err) })
@@ -1005,6 +1048,37 @@ local function parse_rune_state(path)
             end
             local t = line:match("Time%s*=%s*(%d+)") or line:match("UnlockTime%s*=%s*(%d+)")
             if t and out[cur] then out[cur].earned_time = tonumber(t) or 0 end
+        end
+    end
+    return out
+end
+
+local function parse_onlinefix_state(path)
+    local raw = read_file_bytes(path)
+    if not raw then return {} end
+    local out, cur = {}, nil
+    for line in raw:gmatch("[^\r\n]+") do
+        local sec = line:match("^%[(.-)%]$")
+        if sec then
+            cur = sec
+        elseif cur then
+            local key, value = line:match("^%s*([^=]+)%s*=%s*(.-)%s*$")
+            if key and value then
+                key = key:lower()
+                value = value:lower()
+                if key == "achieved" then
+                    if value == "true" or value == "1" then
+                        out[cur] = out[cur] or { earned = true, earned_time = 0 }
+                        out[cur].earned = true
+                    end
+                elseif key == "timestamp" or key == "time" or key == "unlocktime" then
+                    local t = tonumber(value)
+                    if t and t > 0 then
+                        out[cur] = out[cur] or { earned = true, earned_time = 0 }
+                        out[cur].earned_time = t
+                    end
+                end
+            end
         end
     end
     return out
@@ -1200,6 +1274,32 @@ local function fetch_steam_schema(steam_api_key, real_appid)
     return schema, err
 end
 
+local function state_lookup_map(state)
+    local out = {}
+    for key, value in pairs(state or {}) do
+        out[tostring(key):lower()] = value
+    end
+    return out
+end
+
+local function achievement_state(state, state_by_lower, achievement_name)
+    if not achievement_name then return {} end
+    local key = tostring(achievement_name)
+    return state[key] or state_by_lower[key:lower()] or {}
+end
+
+local function count_schema_state_matches(schema, state)
+    local state_by_lower = state_lookup_map(state)
+    local matches = 0
+    for _, achievement in ipairs(schema_achievements(schema)) do
+        local name = type(achievement) == "table" and achievement.name or nil
+        if name and (state[tostring(name)] or state_by_lower[tostring(name):lower()]) then
+            matches = matches + 1
+        end
+    end
+    return matches
+end
+
 local function schema_response(real_appid, schema, state, emulator, emulator_source)
     local game = schema.game or {}
     local schema_achs = (game.availableGameStats or {}).achievements or {}
@@ -1207,8 +1307,9 @@ local function schema_response(real_appid, schema, state, emulator, emulator_sou
     local achievements = {}
     local earned_count = 0
     state = state or {}
+    local state_by_lower = state_lookup_map(state)
     for i, a in ipairs(schema_achs) do
-        local s = state[a.name] or {}
+        local s = achievement_state(state, state_by_lower, a.name)
         local has = s.earned == true
         if has then earned_count = earned_count + 1 end
         local date_earned = cjson.null
@@ -1272,14 +1373,26 @@ local function get_local_achievements_impl(api_key_steam, app_id, steam_app_id, 
     local manual_appid = tonumber(steam_app_id)
     local preferred_appid = manual_appid or infer_real_appid(shortcut)
     local candidates = collect_emulator_saves(prefixes)
-    if manual_appid then
+
+    -- Global Windows save folders can contain many unrelated games. Avoid
+    -- probing every global save via Steam schema lookups when the shortcut
+    -- does not tell us its real Steam AppID; that is slow and has proven
+    -- unstable in Millennium's native bridge for stale/missing shortcuts.
+    if preferred_appid then
         local filtered = {}
         for _, candidate in ipairs(candidates) do
-            if candidate.real_appid == manual_appid then
+            if candidate.real_appid == preferred_appid then
                 table.insert(filtered, candidate)
             end
         end
         candidates = filtered
+    elseif #prefixes == 0 then
+        return safe_encode({
+            status = "no_match",
+            error = "nenhum Steam AppID real encontrado; informe o Steam AppID original ou mantenha um OnlineFix.ini/steam_appid.txt na pasta do jogo",
+            windows_native_tried = false,
+            exe = shortcut.exe,
+        })
     end
 
     if #candidates == 0 then
@@ -1297,7 +1410,7 @@ local function get_local_achievements_impl(api_key_steam, app_id, steam_app_id, 
         end
         return safe_encode({
             status = "no_emulator",
-            error = "nenhum arquivo de emulador de Steam (Goldberg/RUNE) encontrado",
+            error = "nenhum arquivo de emulador de Steam (Goldberg/RUNE/OnlineFix) encontrado",
             prefixes_tried = prefixes,
             windows_native_tried = true,
             manual_appid = manual_appid,
@@ -1314,6 +1427,8 @@ local function get_local_achievements_impl(api_key_steam, app_id, steam_app_id, 
         local candidate_state
         if candidate.emulator == "goldberg" then
             candidate_state = parse_goldberg_state(candidate.state) or {}
+        elseif candidate.emulator == "onlinefix" then
+            candidate_state = parse_onlinefix_state(candidate.state) or {}
         else
             candidate_state = parse_rune_state(candidate.state) or {}
         end
@@ -1371,6 +1486,14 @@ local function get_local_achievements_impl(api_key_steam, app_id, steam_app_id, 
             preferred_appid = preferred_appid,
             skipped_weak_matches = skipped_weak_matches,
         })
+    end
+
+    if table_size(state) > 0 and count_schema_state_matches(schema, state) == 0 then
+        return fallback_local_response(
+            found,
+            state,
+            "schema Steam encontrado, mas nenhum ID local combinou com o catalogo"
+        )
     end
 
     return schema_response(found.real_appid, schema, state, found.emulator, found.source)

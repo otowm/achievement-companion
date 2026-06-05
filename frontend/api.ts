@@ -151,7 +151,7 @@ export async function fetchAchievements(ra_game_id: number): Promise<Achievement
 
 /**
  * Look up local achievements for a non-Steam shortcut: the backend finds the
- * Wine prefix, reads the Steam-emulator save (Goldberg/RUNE), and fetches the
+ * Wine prefix, reads the Steam-emulator save (Goldberg/RUNE/OnlineFix), and fetches the
  * achievement schema from Steam. Returns null when no Steam Web API key is
  * configured (the schema source).
  */
