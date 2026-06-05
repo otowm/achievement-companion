@@ -3,6 +3,6 @@
     "name": "achievement-companion",
     "common_name": "Achievement Companion",
     "description": "Displays achievements from RetroAchievements, local Steam emulator saves, and other sources.",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "backendType": "lua"
 }

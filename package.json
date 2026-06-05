@@ -1,6 +1,6 @@
 {
     "name": "achievement-companion",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Displays achievements from RetroAchievements, local Steam emulator saves, and other sources in Steam.",
     "type": "module",
     "main": "./frontend/index.tsx",
