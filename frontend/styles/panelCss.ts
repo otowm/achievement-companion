@@ -688,6 +688,18 @@ export const PANEL_CSS = `
   line-height: 1.5;
   color: var(--ra-mute, #8b929b);
 }
+.ra-settings__backup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.ra-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 .ra-dismissed-list {
   display: flex;
   flex-direction: column;

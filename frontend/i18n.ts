@@ -90,6 +90,14 @@ const PT_BR = {
   key32Placeholder: "Chave (32 caracteres)",
   saved: "Salvo ✓",
   save: "Salvar",
+  localBackupHint: "Exporte os saves locais detectados (Goldberg/RUNE) para restaurar depois de trocar de PC ou formatar. Importar substitui os arquivos de conquistas locais encontrados no destino.",
+  exportLocalBackup: "Exportar conquistas locais",
+  importLocalBackup: "Importar conquistas locais",
+  backupPathPlaceholder: "Caminho do backup .json",
+  backupExported: "Backup exportado com {count} save(s): {path}",
+  backupImported: "Backup importado: {count} save(s) restaurado(s). Reinicie a Steam se o painel ainda estiver com dados antigos.",
+  backupFailed: "Falha no backup",
+  backupNeedsPath: "Informe o caminho do backup .json.",
   viewByRaGameId: "Ver conquistas por RA Game ID",
   raGameIdHint: "Cole aqui o número que aparece na URL do jogo em retroachievements.org/game/",
   view: "Ver",
@@ -185,6 +193,14 @@ const EN: Record<keyof typeof PT_BR, string> = {
   key32Placeholder: "Key (32 characters)",
   saved: "Saved ✓",
   save: "Save",
+  localBackupHint: "Export detected local saves (Goldberg/RUNE) so they can be restored after moving PCs or reinstalling the system. Importing replaces matching local achievement files at the destination.",
+  exportLocalBackup: "Export local achievements",
+  importLocalBackup: "Import local achievements",
+  backupPathPlaceholder: "Backup .json path",
+  backupExported: "Backup exported with {count} save(s): {path}",
+  backupImported: "Backup imported: {count} save(s) restored. Restart Steam if the panel still shows old data.",
+  backupFailed: "Backup failed",
+  backupNeedsPath: "Enter the backup .json path.",
   viewByRaGameId: "View achievements by RA Game ID",
   raGameIdHint: "Paste the number from the game URL at retroachievements.org/game/",
   view: "View",
@@ -213,4 +229,3 @@ export function t(key: keyof typeof PT_BR, vars: Record<string, string | number>
   const value = DICTS[detectLocale()][key] ?? PT_BR[key] ?? key
   return value.replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? ""))
 }
-

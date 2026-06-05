@@ -7,6 +7,7 @@ Achievement Companion is a Millennium plugin for the Steam client. It adds an ac
 - RetroAchievements linking and progress display for non-Steam shortcuts.
 - Local achievements from Steam emulator saves, including Goldberg and RUNE.
 - Manual Steam AppID mapping for non-Steam shortcuts.
+- Export and import local Goldberg/RUNE achievement backups.
 - Portuguese (Brazil) and English UI, with automatic language detection.
 - Restore ignored games from the plugin settings page.
 - Steam-like achievement hover cards.

@@ -321,11 +321,10 @@ async function attachSteamUIWatcher(popup: SteamPopup) {
   dbg(`popup created: name="${popup.m_strName}"`)
   if (popup.m_strName !== "SP Desktop_uid0") return
 
-  // SteamUI takes a while to fully initialise after window creation.
-  dbg("SteamUI main found, pre-sleep 10s")
-  await new Promise((r) => setTimeout(r, 10000))
-
-  // Poll for MainWindowBrowserManager.
+  // SteamUI may already be ready when the hook fires. Poll for the browser
+  // manager instead of always sleeping, so returning from a game does not add
+  // an artificial delay before the panel can mount again.
+  dbg("SteamUI main found, waiting for MWBM")
   let mwbm: Window["MainWindowBrowserManager"] | undefined
   for (let i = 0; i < 300; i++) {
     mwbm = (window as { MainWindowBrowserManager?: Window["MainWindowBrowserManager"] }).MainWindowBrowserManager

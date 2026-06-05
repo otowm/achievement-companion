@@ -13,6 +13,8 @@ const consoleSearchRaw =
   callable<[{ api_key: string; console_id: number; query: string; username: string }], string>("search_console_games")
 const localAchievementsRaw =
   callable<[{ api_key_steam: string; app_id: string; steam_app_id: string; steam_name: string }], string>("get_local_achievements")
+const exportLocalBackupRaw = callable<[Record<string, never>], string>("export_local_achievement_backup")
+const importLocalBackupRaw = callable<[{ path: string }], string>("import_local_achievement_backup")
 
 function parse<T>(s: string): T {
   return JSON.parse(s) as T
@@ -66,6 +68,16 @@ export interface AchievementsResponse {
   game?: { id: number; title: string; console: string; icon_url: string }
   progress?: { earned: number; earned_hardcore: number; total: number; points: number; total_points: number }
   achievements?: Achievement[]
+  error?: string
+}
+
+export interface LocalBackupResult {
+  status: "ok" | "error"
+  path?: string
+  saves?: number
+  imported?: number
+  failed?: Array<{ steam_app_id?: number | string; emulator?: string; error?: string }>
+  written?: Array<{ steam_app_id: number; emulator: string; path: string }>
   error?: string
 }
 
@@ -160,4 +172,12 @@ export async function getLocalAchievements(appId: string, steamName: string): Pr
   } catch {
     return null
   }
+}
+
+export async function exportLocalAchievementBackup(): Promise<LocalBackupResult> {
+  return parse<LocalBackupResult>(await exportLocalBackupRaw({}))
+}
+
+export async function importLocalAchievementBackup(path: string): Promise<LocalBackupResult> {
+  return parse<LocalBackupResult>(await importLocalBackupRaw({ path }))
 }

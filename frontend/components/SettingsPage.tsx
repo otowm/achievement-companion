@@ -1,6 +1,13 @@
 import React, { useEffect, useRef, useState } from "react"
 import { Button, Dropdown, Field, TextField, ToggleField } from "@steambrew/client"
-import { searchGames, validateCredentials, Candidate } from "../api"
+import {
+  Candidate,
+  exportLocalAchievementBackup,
+  importLocalAchievementBackup,
+  LocalBackupResult,
+  searchGames,
+  validateCredentials,
+} from "../api"
 import {
   clearDismissed,
   AppLanguage,
@@ -112,6 +119,9 @@ export function SettingsPage() {
   const [localDetectionEnabled, setLocalDetectionEnabledState] = useState(false)
   const [dismissedGames, setDismissedGames] = useState<DismissedGame[]>([])
   const [language, setLanguageState] = useState<AppLanguage>("auto")
+  const [backupPath, setBackupPath] = useState("")
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [backupStatus, setBackupStatus] = useState<{ ok: boolean; msg: string } | null>(null)
 
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -196,6 +206,51 @@ export function SettingsPage() {
       setSearchResults([])
     } finally {
       setSearching(false)
+    }
+  }
+
+  function backupMessage(result: LocalBackupResult, mode: "export" | "import"): { ok: boolean; msg: string } {
+    if (result.status !== "ok") {
+      return { ok: false, msg: result.error ?? t("backupFailed") }
+    }
+    if (mode === "export") {
+      return {
+        ok: true,
+        msg: t("backupExported", { count: result.saves ?? 0, path: result.path ?? "" }),
+      }
+    }
+    return {
+      ok: true,
+      msg: t("backupImported", { count: result.imported ?? 0 }),
+    }
+  }
+
+  async function handleExportLocalBackup() {
+    setBackupBusy(true)
+    setBackupStatus(null)
+    try {
+      setBackupStatus(backupMessage(await exportLocalAchievementBackup(), "export"))
+    } catch (e) {
+      setBackupStatus({ ok: false, msg: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setBackupBusy(false)
+    }
+  }
+
+  async function handleImportLocalBackup() {
+    const path = backupPath.trim()
+    if (!path) {
+      setBackupStatus({ ok: false, msg: t("backupNeedsPath") })
+      return
+    }
+    setBackupBusy(true)
+    setBackupStatus(null)
+    try {
+      setBackupStatus(backupMessage(await importLocalAchievementBackup(path), "import"))
+    } catch (e) {
+      setBackupStatus({ ok: false, msg: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setBackupBusy(false)
     }
   }
 
@@ -308,6 +363,30 @@ export function SettingsPage() {
           <Button className="ra-btn ra-btn--primary" onClick={handleSaveSteamKey}>
             {steamKeySaved ? t("saved") : t("save")}
           </Button>
+        </div>
+        <div className="ra-settings__backup">
+          <div className="ra-settings__hint">{t("localBackupHint")}</div>
+          <div className="ra-settings__actions">
+            <Button className="ra-btn ra-btn--primary" onClick={handleExportLocalBackup} disabled={backupBusy}>
+              {t("exportLocalBackup")}
+            </Button>
+          </div>
+          <TextField
+            className="ra-settings__input"
+            label={t("backupPathPlaceholder")}
+            value={backupPath}
+            onChange={(e) => setBackupPath(e.target.value)}
+          />
+          <div className="ra-settings__actions">
+            <Button className="ra-btn" onClick={handleImportLocalBackup} disabled={backupBusy}>
+              {t("importLocalBackup")}
+            </Button>
+          </div>
+          {backupStatus && (
+            <div className={`ra-settings__status ra-settings__status--${backupStatus.ok ? "ok" : "error"}`}>
+              {backupStatus.msg}
+            </div>
+          )}
         </div>
       </div>
 

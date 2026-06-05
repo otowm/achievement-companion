@@ -447,6 +447,14 @@ local function read_file_bytes(path)
     return data
 end
 
+local function write_file_bytes(path, data)
+    local f, err = io.open(path, "wb")
+    if not f then return false, err end
+    f:write(data or "")
+    f:close()
+    return true
+end
+
 local function fs_entry_name(entry)
     if type(entry) == "string" then return entry end
     if type(entry) == "table" then
@@ -470,6 +478,40 @@ local function path_dirname(path)
     local dir = p:match("^(.*)/[^/]*$")
     if dir and dir ~= "" then return dir end
     return nil
+end
+
+local function is_windows()
+    local os_name = ""
+    if os and type(os.getenv) == "function" then
+        local ok, value = pcall(os.getenv, "OS")
+        if ok then os_name = tostring(value or "") end
+    end
+    if os_name:lower():find("windows", 1, true) then return true end
+    return package.config and package.config:sub(1, 1) == "\\"
+end
+
+local function shell_quote(path)
+    local p = path_clean(path)
+    if not p or p:find("\0", 1, true) then return nil end
+    if is_windows() then
+        if p:find("[%%&|<>^]") then return nil end
+        return '"' .. p:gsub('"', ""):gsub("/", "\\") .. '"'
+    end
+    return "'" .. p:gsub("'", "'\\''") .. "'"
+end
+
+local function ensure_dir(path)
+    local p = path_clean(path)
+    if not p or p == "" then return false, "caminho invalido" end
+    if fs.is_directory(p) then return true end
+    local quoted = shell_quote(p)
+    if not quoted then return false, "caminho invalido" end
+    local cmd = is_windows() and ("mkdir " .. quoted) or ("mkdir -p " .. quoted)
+    local ok = os.execute(cmd)
+    if ok == true or ok == 0 then
+        return fs.is_directory(p), fs.is_directory(p) and nil or "diretorio nao criado"
+    end
+    return false, "mkdir falhou"
 end
 
 local function push_unique(list, value)
@@ -710,6 +752,235 @@ local function collect_emulator_saves(prefixes)
     return out
 end
 
+local function collect_all_emulator_saves()
+    local prefixes = {}
+    for _, shortcut in ipairs(read_shortcuts()) do
+        for _, prefix in ipairs(derive_prefixes(shortcut.exe, shortcut.appid)) do
+            push_unique(prefixes, prefix)
+        end
+    end
+    return collect_emulator_saves(prefixes)
+end
+
+local function default_backup_dir()
+    local home = path_clean(get_env("USERPROFILE")) or path_clean(get_env("HOME"))
+    if not home then
+        local steam = path_clean(millennium.steam_path())
+        if steam then return steam .. "/achievement-companion-backups" end
+        return nil
+    end
+    return home .. "/Documents/Achievement Companion"
+end
+
+local function backup_file_name()
+    return "achievement-companion-local-" .. os.date("!%Y%m%d-%H%M%S") .. ".json"
+end
+
+local function add_restore_root(out, root)
+    local clean = path_clean(root)
+    if not clean or clean == "" then return end
+    for _, existing in ipairs(out) do
+        if existing == clean then return end
+    end
+    table.insert(out, clean)
+end
+
+local function native_restore_roots(emulator)
+    local out = {}
+    if emulator == "goldberg" then
+        local appdata = path_clean(get_env("APPDATA"))
+        local userprofile = path_clean(get_env("USERPROFILE"))
+        if appdata then add_restore_root(out, appdata .. "/Goldberg SteamEmu Saves") end
+        if userprofile then add_restore_root(out, userprofile .. "/AppData/Roaming/Goldberg SteamEmu Saves") end
+    elseif emulator == "rune" then
+        local public = path_clean(get_env("PUBLIC")) or "C:/Users/Public"
+        add_restore_root(out, public .. "/Documents/Steam/RUNE")
+        add_restore_root(out, "C:/Users/Public/Documents/Steam/RUNE")
+    end
+    return out
+end
+
+local function prefix_restore_roots(real_appid, emulator, game_name)
+    local out = {}
+    local wanted_name = normalize(game_name or "")
+    for _, shortcut in ipairs(read_shortcuts()) do
+        local inferred = infer_real_appid(shortcut)
+        local name_matches = wanted_name ~= "" and normalize(shortcut.appname or "") == wanted_name
+        if inferred == real_appid or name_matches then
+            for _, prefix in ipairs(derive_prefixes(shortcut.exe, shortcut.appid)) do
+                local users_dir = prefix .. "/drive_c/users"
+                if fs.is_directory(users_dir) then
+                    if emulator == "goldberg" then
+                        for _, user_entry in ipairs(fs.list(users_dir) or {}) do
+                            local user = fs_entry_name(user_entry)
+                            if user and user ~= "Public" then
+                                add_restore_root(out, users_dir .. "/" .. user .. "/AppData/Roaming/Goldberg SteamEmu Saves")
+                            end
+                        end
+                        add_restore_root(out, users_dir .. "/steamuser/AppData/Roaming/Goldberg SteamEmu Saves")
+                    elseif emulator == "rune" then
+                        add_restore_root(out, users_dir .. "/Public/Documents/Steam/RUNE")
+                    end
+                end
+            end
+        end
+    end
+    return out
+end
+
+local function source_restore_roots(source, emulator)
+    local out = {}
+    local prefix = tostring(source or ""):match("^prefix:(.+)$")
+    if not prefix then return out end
+    local users_dir = prefix .. "/drive_c/users"
+    if not fs.is_directory(users_dir) then return out end
+    if emulator == "goldberg" then
+        for _, user_entry in ipairs(fs.list(users_dir) or {}) do
+            local user = fs_entry_name(user_entry)
+            if user and user ~= "Public" then
+                add_restore_root(out, users_dir .. "/" .. user .. "/AppData/Roaming/Goldberg SteamEmu Saves")
+            end
+        end
+    elseif emulator == "rune" then
+        add_restore_root(out, users_dir .. "/Public/Documents/Steam/RUNE")
+    end
+    return out
+end
+
+local function restore_roots(real_appid, emulator, game_name, source)
+    local out = {}
+    for _, root in ipairs(source_restore_roots(source, emulator)) do
+        add_restore_root(out, root)
+    end
+    for _, root in ipairs(prefix_restore_roots(real_appid, emulator, game_name)) do
+        add_restore_root(out, root)
+    end
+    for _, root in ipairs(native_restore_roots(emulator)) do
+        add_restore_root(out, root)
+    end
+    return out
+end
+
+local function emulator_state_file(emulator)
+    if emulator == "goldberg" then return "achievements.json" end
+    if emulator == "rune" then return "achievements.ini" end
+    return nil
+end
+
+local function export_local_achievement_backup_impl()
+    local saves = {}
+    for _, found in ipairs(collect_all_emulator_saves()) do
+        local raw = read_file_bytes(found.state)
+        if raw and #raw <= 5 * 1024 * 1024 then
+            table.insert(saves, {
+                emulator = found.emulator,
+                steam_app_id = found.real_appid,
+                source = found.source,
+                file_name = emulator_state_file(found.emulator) or "",
+                content = raw,
+            })
+        end
+    end
+
+    table.sort(saves, function(a, b)
+        if a.steam_app_id == b.steam_app_id then return tostring(a.emulator) < tostring(b.emulator) end
+        return tonumber(a.steam_app_id) < tonumber(b.steam_app_id)
+    end)
+
+    local dir = default_backup_dir()
+    if not dir then
+        return safe_encode({ status = "error", error = "nao foi possivel encontrar a pasta Documents" })
+    end
+    local ok_dir, dir_err = ensure_dir(dir)
+    if not ok_dir then
+        return safe_encode({ status = "error", error = "nao foi possivel criar pasta de backup: " .. tostring(dir_err) })
+    end
+
+    local path = dir .. "/" .. backup_file_name()
+    local payload = safe_encode({
+        format = "achievement-companion-local-backup",
+        version = 1,
+        exported_at = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+        saves = saves,
+    })
+    local ok_write, write_err = write_file_bytes(path, payload)
+    if not ok_write then
+        return safe_encode({ status = "error", error = "falha ao escrever backup: " .. tostring(write_err) })
+    end
+    return safe_encode({ status = "ok", path = path, saves = #saves })
+end
+
+local function import_local_achievement_backup_impl(path)
+    local clean_path = path_clean(path)
+    if not clean_path or clean_path == "" then
+        return safe_encode({ status = "error", error = "informe o caminho do arquivo de backup" })
+    end
+    if not clean_path:lower():match("%.json$") then
+        return safe_encode({ status = "error", error = "o backup precisa ser um arquivo .json" })
+    end
+    local raw = read_file_bytes(clean_path)
+    if not raw then
+        return safe_encode({ status = "error", error = "backup nao encontrado" })
+    end
+    if #raw > 20 * 1024 * 1024 then
+        return safe_encode({ status = "error", error = "backup muito grande" })
+    end
+
+    local ok_decode, backup = pcall(safe_decode, raw)
+    if not ok_decode or type(backup) ~= "table" then
+        return safe_encode({ status = "error", error = "JSON de backup invalido" })
+    end
+    if backup.format ~= "achievement-companion-local-backup" or tonumber(backup.version) ~= 1 then
+        return safe_encode({ status = "error", error = "arquivo nao parece ser um backup do Achievement Companion" })
+    end
+    if type(backup.saves) ~= "table" then
+        return safe_encode({ status = "error", error = "backup sem lista de saves" })
+    end
+
+    local imported, failed = 0, {}
+    local written = {}
+    for _, save in ipairs(backup.saves) do
+        local emulator = tostring(save.emulator or "")
+        local real_appid = tonumber(save.steam_app_id)
+        local content = type(save.content) == "string" and save.content or nil
+        local file_name = emulator_state_file(emulator)
+        if not real_appid or not file_name or not content or #content > 5 * 1024 * 1024 then
+            table.insert(failed, { steam_app_id = save.steam_app_id, emulator = emulator, error = "entrada invalida" })
+        else
+            local roots = restore_roots(real_appid, emulator, save.game_name, save.source)
+            if #roots == 0 then
+                table.insert(failed, { steam_app_id = real_appid, emulator = emulator, error = "nenhum destino encontrado" })
+            else
+                local wrote_one = false
+                for _, root in ipairs(roots) do
+                    local app_dir = root .. "/" .. tostring(real_appid)
+                    local ok_dir, dir_err = ensure_dir(app_dir)
+                    if ok_dir then
+                        local target = app_dir .. "/" .. file_name
+                        local ok_write, write_err = write_file_bytes(target, content)
+                        if ok_write then
+                            wrote_one = true
+                            table.insert(written, { steam_app_id = real_appid, emulator = emulator, path = target })
+                        else
+                            table.insert(failed, { steam_app_id = real_appid, emulator = emulator, error = tostring(write_err) })
+                        end
+                    else
+                        table.insert(failed, { steam_app_id = real_appid, emulator = emulator, error = tostring(dir_err) })
+                    end
+                end
+                if wrote_one then imported = imported + 1 end
+            end
+        end
+    end
+
+    return safe_encode({
+        status = imported > 0 and "ok" or "error",
+        imported = imported,
+        failed = failed,
+        written = written,
+    })
+end
+
 local function parse_goldberg_state(path)
     local raw = read_file_bytes(path)
     if not raw then return nil end
@@ -884,7 +1155,9 @@ local function merge_schema_text_fallback(target, fallback)
     return target
 end
 
-local function fetch_steam_schema(steam_api_key, real_appid)
+local steam_schema_cache = {}
+
+local function fetch_steam_schema_uncached(steam_api_key, real_appid)
     local errors = {}
     for _, lang in ipairs({ "brazilian", "portuguese" }) do
         local schema, err = fetch_steam_schema_lang(steam_api_key, real_appid, lang)
@@ -911,6 +1184,20 @@ local function fetch_steam_schema(steam_api_key, real_appid)
     end
     table.insert(errors, "english: " .. tostring(err))
     return nil, table.concat(errors, "; ")
+end
+
+local function fetch_steam_schema(steam_api_key, real_appid)
+    local key = tostring(real_appid or "")
+    local cached = steam_schema_cache[key]
+    if cached then
+        return cached.schema
+    end
+
+    local schema, err = fetch_steam_schema_uncached(steam_api_key, real_appid)
+    if schema then
+        steam_schema_cache[key] = { schema = schema }
+    end
+    return schema, err
 end
 
 local function schema_response(real_appid, schema, state, emulator, emulator_source)
@@ -1095,6 +1382,26 @@ function get_local_achievements(api_key_steam, app_id, steam_app_id, steam_name)
     local ok, result = pcall(get_local_achievements_impl, api_key_steam, app_id, steam_app_id, steam_name)
     if ok then return result end
     logger:error("get_local_achievements failed: " .. tostring(result))
+    return safe_encode({
+        status = "error",
+        error = "backend Lua: " .. tostring(result),
+    })
+end
+
+function export_local_achievement_backup()
+    local ok, result = pcall(export_local_achievement_backup_impl)
+    if ok then return result end
+    logger:error("export_local_achievement_backup failed: " .. tostring(result))
+    return safe_encode({
+        status = "error",
+        error = "backend Lua: " .. tostring(result),
+    })
+end
+
+function import_local_achievement_backup(path)
+    local ok, result = pcall(import_local_achievement_backup_impl, path)
+    if ok then return result end
+    logger:error("import_local_achievement_backup failed: " .. tostring(result))
     return safe_encode({
         status = "error",
         error = "backend Lua: " .. tostring(result),
